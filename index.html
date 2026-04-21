@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daily Reflection — DeepThought</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --ink: #0e0e0f;
+    --paper: #f5f0e8;
+    --paper-warm: #ede5d4;
+    --accent: #c84b2f;
+    --accent-soft: rgba(200,75,47,0.12);
+    --gold: #9a7c3f;
+    --gold-light: rgba(154,124,63,0.15);
+    --muted: #6b6457;
+    --line: rgba(14,14,15,0.12);
+    --axis1: #2d5a8e;
+    --axis2: #5a3d6b;
+    --axis3: #2e6b4f;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    overflow: hidden;
+  }
+
+  /* ── GRAIN OVERLAY ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1000;
+    opacity: 0.6;
+  }
+
+  /* ── LAYOUT ── */
+  #app {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+
+  /* ── HEADER BAR ── */
+  #header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 40px;
+    border-bottom: 1px solid var(--line);
+    flex-shrink: 0;
+  }
+
+  .logo {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    font-weight: 300;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .logo span { color: var(--accent); }
+
+  #axis-tracker {
+    display: flex;
+    gap: 24px;
+    align-items: center;
+  }
+
+  .axis-pip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    opacity: 0.4;
+    transition: opacity 0.4s ease;
+  }
+
+  .axis-pip.active { opacity: 1; }
+  .axis-pip.done { opacity: 0.7; }
+
+  .pip-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--muted);
+    transition: background 0.4s ease;
+  }
+
+  .axis-pip[data-axis="1"].active .pip-dot { background: var(--axis1); }
+  .axis-pip[data-axis="2"].active .pip-dot { background: var(--axis2); }
+  .axis-pip[data-axis="3"].active .pip-dot { background: var(--axis3); }
+  .axis-pip.done .pip-dot { background: var(--gold); }
+
+  #time-display {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+  }
+
+  /* ── PROGRESS LINE ── */
+  #progress-bar {
+    height: 2px;
+    background: var(--line);
+    flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+  }
+
+  #progress-fill {
+    position: absolute;
+    left: 0; top: 0; height: 100%;
+    background: linear-gradient(90deg, var(--axis1), var(--axis2), var(--axis3));
+    width: 0%;
+    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* ── MAIN STAGE ── */
+  #stage {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  #card {
+    width: 100%;
+    max-width: 640px;
+    position: relative;
+  }
+
+  /* ── NODE TYPE LABELS ── */
+  .node-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 28px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    opacity: 0;
+    animation: fadeUp 0.5s ease 0.1s forwards;
+  }
+
+  .node-label::before {
+    content: '';
+    display: block;
+    width: 20px;
+    height: 1px;
+    background: currentColor;
+  }
+
+  /* ── QUESTION TEXT ── */
+  .question-text {
+    font-size: clamp(22px, 3.5vw, 32px);
+    font-weight: 300;
+    line-height: 1.45;
+    color: var(--ink);
+    margin-bottom: 40px;
+    opacity: 0;
+    animation: fadeUp 0.5s ease 0.2s forwards;
+  }
+
+  .question-text em {
+    font-style: italic;
+    color: var(--muted);
+  }
+
+  /* ── OPTIONS ── */
+  .options-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    opacity: 0;
+    animation: fadeUp 0.5s ease 0.35s forwards;
+  }
+
+  .option-btn {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 16px 20px;
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.2s ease;
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 16px;
+    font-weight: 400;
+    color: var(--ink);
+    line-height: 1.5;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .option-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--ink);
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+
+  .option-btn:hover {
+    border-color: var(--ink);
+    transform: translateX(4px);
+  }
+
+  .option-btn:hover::before { opacity: 0.03; }
+
+  .option-btn.selected {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+
+  .option-key {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    padding-top: 3px;
+    flex-shrink: 0;
+    min-width: 18px;
+  }
+
+  /* ── REFLECTION CARD ── */
+  .reflection-card {
+    position: relative;
+    padding: 40px 44px;
+    background: var(--paper-warm);
+    border-left: 3px solid var(--gold);
+    opacity: 0;
+    animation: fadeUp 0.6s ease 0.1s forwards;
+  }
+
+  .reflection-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 20px;
+  }
+
+  .reflection-text {
+    font-size: clamp(17px, 2.5vw, 22px);
+    font-weight: 300;
+    line-height: 1.7;
+    color: var(--ink);
+    font-style: italic;
+    margin-bottom: 32px;
+  }
+
+  /* ── BRIDGE ── */
+  .bridge-card {
+    text-align: center;
+    opacity: 0;
+    animation: fadeIn 0.8s ease 0.1s forwards;
+  }
+
+  .bridge-divider {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+
+  .bridge-divider::before,
+  .bridge-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--line);
+  }
+
+  .bridge-icon { font-size: 16px; color: var(--muted); }
+
+  .bridge-text {
+    font-size: clamp(16px, 2.5vw, 20px);
+    font-weight: 300;
+    color: var(--muted);
+    font-style: italic;
+    line-height: 1.6;
+  }
+
+  /* ── START SCREEN ── */
+  .start-card {
+    text-align: center;
+    opacity: 0;
+    animation: fadeUp 0.8s ease 0.2s forwards;
+  }
+
+  .start-moon {
+    font-size: 40px;
+    margin-bottom: 32px;
+    display: block;
+    animation: float 4s ease-in-out infinite;
+  }
+
+  .start-title {
+    font-size: clamp(28px, 5vw, 48px);
+    font-weight: 300;
+    line-height: 1.3;
+    margin-bottom: 24px;
+    color: var(--ink);
+  }
+
+  .start-sub {
+    font-size: clamp(15px, 2vw, 18px);
+    font-weight: 300;
+    color: var(--muted);
+    line-height: 1.7;
+    max-width: 480px;
+    margin: 0 auto 40px;
+  }
+
+  /* ── SUMMARY SCREEN ── */
+  .summary-card {
+    opacity: 0;
+    animation: fadeUp 0.6s ease 0.1s forwards;
+  }
+
+  .summary-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 32px;
+  }
+
+  .axis-summary {
+    padding: 20px 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .axis-summary:last-of-type { border-bottom: none; }
+
+  .axis-name {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .axis-name.a1 { color: var(--axis1); }
+  .axis-name.a2 { color: var(--axis2); }
+  .axis-name.a3 { color: var(--axis3); }
+
+  .axis-result {
+    font-size: clamp(16px, 2.2vw, 20px);
+    font-weight: 300;
+    line-height: 1.55;
+    color: var(--ink);
+  }
+
+  .axis-bar {
+    height: 3px;
+    background: var(--line);
+    border-radius: 2px;
+    margin-top: 10px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .axis-bar-fill {
+    position: absolute;
+    left: 0; top: 0; height: 100%;
+    border-radius: 2px;
+    width: 0;
+    transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .axis-bar-fill.a1 { background: var(--axis1); }
+  .axis-bar-fill.a2 { background: var(--axis2); }
+  .axis-bar-fill.a3 { background: var(--axis3); }
+
+  .summary-close {
+    font-size: clamp(14px, 2vw, 17px);
+    font-weight: 300;
+    color: var(--muted);
+    margin-top: 32px;
+    font-style: italic;
+    line-height: 1.6;
+    padding-top: 24px;
+    border-top: 1px solid var(--line);
+  }
+
+  /* ── END SCREEN ── */
+  .end-card {
+    text-align: center;
+    opacity: 0;
+    animation: fadeUp 0.8s ease 0.2s forwards;
+  }
+
+  .end-star {
+    font-size: 32px;
+    margin-bottom: 24px;
+    display: block;
+  }
+
+  .end-text {
+    font-size: clamp(20px, 3.5vw, 32px);
+    font-weight: 300;
+    line-height: 1.5;
+    color: var(--ink);
+    margin-bottom: 16px;
+  }
+
+  .end-sub {
+    font-size: 15px;
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  /* ── BUTTONS ── */
+  .btn-continue {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 28px;
+    background: var(--ink);
+    color: var(--paper);
+    border: none;
+    border-radius: 1px;
+    cursor: pointer;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    transition: all 0.2s ease;
+  }
+
+  .btn-continue:hover {
+    background: var(--accent);
+    transform: translateY(-1px);
+  }
+
+  .btn-continue .arrow { transition: transform 0.2s ease; }
+  .btn-continue:hover .arrow { transform: translateX(4px); }
+
+  .btn-start {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 36px;
+    background: transparent;
+    color: var(--ink);
+    border: 1px solid var(--ink);
+    border-radius: 1px;
+    cursor: pointer;
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 17px;
+    font-weight: 400;
+    transition: all 0.2s ease;
+  }
+
+  .btn-start:hover {
+    background: var(--ink);
+    color: var(--paper);
+  }
+
+  /* ── FOOTER ── */
+  #footer {
+    padding: 16px 40px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .node-counter {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+  }
+
+  .kbd-hint {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    display: flex;
+    gap: 12px;
+  }
+
+  kbd {
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    padding: 2px 6px;
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+  }
+
+  /* ── ANIMATIONS ── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50%       { transform: translateY(-8px); }
+  }
+
+  @keyframes slideOut {
+    from { opacity: 1; transform: translateX(0); }
+    to   { opacity: 0; transform: translateX(-30px); }
+  }
+
+  .slide-out {
+    animation: slideOut 0.3s ease forwards;
+  }
+
+  /* ── TYPEWRITER CURSOR ── */
+  .cursor {
+    display: inline-block;
+    width: 2px;
+    height: 1em;
+    background: var(--ink);
+    vertical-align: text-bottom;
+    animation: blink 1s step-end infinite;
+    margin-left: 2px;
+  }
+
+  @keyframes blink {
+    50% { opacity: 0; }
+  }
+
+  /* ── SCROLLABLE CARD ── */
+  #stage {
+    overflow-y: auto;
+  }
+
+  /* ── MOBILE ── */
+  @media (max-width: 600px) {
+    #header { padding: 14px 20px; }
+    #stage { padding: 24px 20px; }
+    #footer { padding: 12px 20px; }
+    #axis-tracker { gap: 12px; }
+    .axis-pip span { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- Header -->
+  <header id="header">
+    <div class="logo">Deep<span>Thought</span> · Reflection</div>
+    <div id="axis-tracker">
+      <div class="axis-pip" data-axis="1">
+        <div class="pip-dot"></div>
+        <span>Locus</span>
+      </div>
+      <div class="axis-pip" data-axis="2">
+        <div class="pip-dot"></div>
+        <span>Orientation</span>
+      </div>
+      <div class="axis-pip" data-axis="3">
+        <div class="pip-dot"></div>
+        <span>Radius</span>
+      </div>
+    </div>
+    <div id="time-display"></div>
+  </header>
+
+  <!-- Progress -->
+  <div id="progress-bar">
+    <div id="progress-fill"></div>
+  </div>
+
+  <!-- Main stage -->
+  <main id="stage">
+    <div id="card"></div>
+  </main>
+
+  <!-- Footer -->
+  <footer id="footer">
+    <div class="node-counter" id="node-counter">—</div>
+    <div class="kbd-hint">
+      <span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd> to select</span>
+      <span><kbd>↵</kbd> to continue</span>
+    </div>
+  </footer>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// REFLECTION TREE ENGINE — Zero LLM calls at runtime
+// ═══════════════════════════════════════════════════════
+
+const TREE_DATA = [{"id":"START","parentId":null,"type":"start","text":"Good evening. You made it through another day — and that means something. This isn't a performance review. It's a mirror. Let's take ten minutes to look at how you actually showed up today.","options":[],"target":"A1_OPEN","signal":""},{"id":"A1_OPEN","parentId":"START","type":"question","text":"If today were a weather report, what would it be?","options":["Sunny — things flowed","Overcast — sluggish but manageable","Stormy — things fell apart","Unpredictable — it kept changing"],"target":"","signal":""},{"id":"A1_D1","parentId":"A1_OPEN","type":"decision","text":"","options":["answer=Sunny — things flowed|Unpredictable — it kept changing:A1_Q_AGENCY_HIGH","answer=Overcast — sluggish but manageable|Stormy — things fell apart:A1_Q_AGENCY_LOW"],"target":"","signal":""},{"id":"A1_Q_AGENCY_HIGH","parentId":"A1_D1","type":"question","text":"You described today as '{A1_OPEN.answer}'. When something went well, what would you say made it happen?","options":["I prepared and it paid off","The team delivered","I caught a lucky break","I noticed a problem and adapted"],"target":"","signal":"axis1:internal"},{"id":"A1_Q_AGENCY_LOW","parentId":"A1_D1","type":"question","text":"You described today as '{A1_OPEN.answer}'. When things got difficult, what was your first instinct?","options":["Figure out what I could still control","Wait for someone to step in","Push through it on my own","Feel stuck and unsure what to do next"],"target":"","signal":"axis1:external"},{"id":"A1_D2_HIGH","parentId":"A1_Q_AGENCY_HIGH","type":"decision","text":"","options":["answer=I prepared and it paid off|I noticed a problem and adapted:A1_Q2_INTERNAL","answer=The team delivered|I caught a lucky break:A1_Q2_CREDIT"],"target":"","signal":""},{"id":"A1_D2_LOW","parentId":"A1_Q_AGENCY_LOW","type":"decision","text":"","options":["answer=Figure out what I could still control|Push through it on my own:A1_Q2_INTERNAL","answer=Wait for someone to step in|Feel stuck and unsure what to do next:A1_Q2_EXTERNAL"],"target":"","signal":""},{"id":"A1_Q2_INTERNAL","parentId":null,"type":"question","text":"Think of one specific moment today where things were not going your way. Did you make a choice in that moment — even a small one?","options":["Yes — and I can name what that choice was","Sort of — I reacted, but it wasn't deliberate","I'm not sure I had a choice","I did nothing and let it pass"],"target":"","signal":"axis1:internal"},{"id":"A1_Q2_CREDIT","parentId":null,"type":"question","text":"When things went right today, did you feel like you could claim any credit — or did it feel like it happened around you?","options":["I contributed — I can say specifically how","I was part of it, but the team carried it","I got lucky more than I deserved","I'm honestly not sure what I did"],"target":"","signal":"axis1:external"},{"id":"A1_Q2_EXTERNAL","parentId":null,"type":"question","text":"When the day was difficult, who or what came to mind first?","options":["A person who created the problem","A situation I couldn't control","Something I probably should have handled earlier","I'm not sure — it just felt heavy"],"target":"","signal":"axis1:external"},{"id":"A1_D3","parentId":"A1_Q2_INTERNAL","type":"decision","text":"","options":["answer=Yes — and I can name what that choice was|Sort of — I reacted, but it wasn't deliberate:A1_R_INTERNAL","answer=I'm not sure I had a choice|I did nothing and let it pass:A1_R_EXTERNAL"],"target":"","signal":""},{"id":"A1_D3B","parentId":"A1_Q2_CREDIT","type":"decision","text":"","options":["answer=I contributed — I can say specifically how|I was part of it, but the team carried it:A1_R_INTERNAL","answer=I got lucky more than I deserved|I'm honestly not sure what I did:A1_R_EXTERNAL"],"target":"","signal":""},{"id":"A1_D3C","parentId":"A1_Q2_EXTERNAL","type":"decision","text":"","options":["answer=Something I probably should have handled earlier:A1_R_INTERNAL","answer=A person who created the problem|A situation I couldn't control|I'm not sure — it just felt heavy:A1_R_EXTERNAL"],"target":"","signal":""},{"id":"A1_R_INTERNAL","parentId":null,"type":"reflection","text":"You see your own hand in today. That's not self-blame — that's agency. People who notice where they had a choice, even a small one, are the ones who can grow from what happened. Whatever today threw at you, some part of you was in the driver's seat.","options":[],"target":"BRIDGE_1_2_A","signal":"axis1:internal"},{"id":"A1_R_EXTERNAL","parentId":null,"type":"reflection","text":"A hard day pulls attention outward — to what others did or didn't do, to circumstances that weren't in your favor. That's a real response to real difficulty. But there's usually a moment, even a small one, where you had a choice. You don't have to claim the whole day — just one moment.","options":[],"target":"BRIDGE_1_2_B","signal":"axis1:external"},{"id":"BRIDGE_1_2_A","parentId":"A1_R_INTERNAL","type":"bridge","text":"You've looked at how you handled today. Now let's look at what you gave.","options":[],"target":"A2_OPEN","signal":""},{"id":"BRIDGE_1_2_B","parentId":"A1_R_EXTERNAL","type":"bridge","text":"You've looked at how you handled today. Now let's turn the lens — not on what happened to you, but on what you brought to others.","options":[],"target":"A2_OPEN","signal":""},{"id":"A2_OPEN","parentId":null,"type":"question","text":"Think about one specific interaction you had today — a meeting, a conversation, a message. Which of these feels closest to how it went?","options":["I gave something — time, energy, help — without tracking the return","I was present, but mostly doing what was expected of me","I noticed I was keeping score a bit","I felt like I gave more than I received today"],"target":"","signal":""},{"id":"A2_D1","parentId":"A2_OPEN","type":"decision","text":"","options":["answer=I gave something — time, energy, help — without tracking the return|I was present, but mostly doing what was expected of me:A2_Q_CONTRIBUTION","answer=I noticed I was keeping score a bit|I felt like I gave more than I received today:A2_Q_ENTITLEMENT"],"target":"","signal":""},{"id":"A2_Q_CONTRIBUTION","parentId":"A2_D1","type":"question","text":"Was there a moment today where you did something for someone that wasn't asked of you, wasn't tracked, and had no direct benefit to you?","options":["Yes — I can picture it clearly","Maybe — something small, not sure it counts","No, I was heads-down on my own work","I thought about it but didn't act on it"],"target":"","signal":"axis2:contribution"},{"id":"A2_Q_ENTITLEMENT","parentId":"A2_D1","type":"question","text":"When you thought about recognition or credit today — what came up?","options":["I felt my work was seen and that felt good","I did good work but nobody acknowledged it","I didn't think much about recognition at all","I felt frustrated that someone else got credit I deserved"],"target":"","signal":"axis2:entitlement"},{"id":"A2_D2_CONT","parentId":"A2_Q_CONTRIBUTION","type":"decision","text":"","options":["answer=Yes — I can picture it clearly|Maybe — something small, not sure it counts:A2_Q2_GIVING","answer=No, I was heads-down on my own work|I thought about it but didn't act on it:A2_Q2_WITHHOLD"],"target":"","signal":""},{"id":"A2_D2_ENT","parentId":"A2_Q_ENTITLEMENT","type":"decision","text":"","options":["answer=I felt my work was seen and that felt good|I didn't think much about recognition at all:A2_Q2_GIVING","answer=I did good work but nobody acknowledged it|I felt frustrated that someone else got credit I deserved:A2_Q2_WITHHOLD"],"target":"","signal":""},{"id":"A2_Q2_GIVING","parentId":null,"type":"question","text":"When you think about your team's progress today — not just your own tasks — how much mental space did that take up?","options":["A lot — I was thinking about us as a unit","Some — I checked in on a couple of people","Not much — I was in execution mode","Barely any — I had my own fires to manage"],"target":"","signal":"axis2:contribution"},{"id":"A2_Q2_WITHHOLD","parentId":null,"type":"question","text":"Is there something you held back today — effort, knowledge, or support — that someone else could have used?","options":["Honestly, yes — I could have offered more","I was stretched thin, there was nothing left to give","I didn't notice anyone needed anything","I thought about helping but wasn't sure it was my place"],"target":"","signal":"axis2:entitlement"},{"id":"A2_D3","parentId":"A2_Q2_GIVING","type":"decision","text":"","options":["answer=A lot — I was thinking about us as a unit|Some — I checked in on a couple of people:A2_R_CONTRIBUTION","answer=Not much — I was in execution mode|Barely any — I had my own fires to manage:A2_R_CONTRIBUTION"],"target":"","signal":""},{"id":"A2_D3B","parentId":"A2_Q2_WITHHOLD","type":"decision","text":"","options":["answer=Honestly, yes — I could have offered more|I thought about helping but wasn't sure it was my place:A2_R_ENTITLEMENT","answer=I was stretched thin, there was nothing left to give|I didn't notice anyone needed anything:A2_R_CONTRIBUTION"],"target":"","signal":""},{"id":"A2_R_CONTRIBUTION","parentId":null,"type":"reflection","text":"Contribution isn't about being selfless to the point of burning out. It's about the direction of your attention — are you oriented toward what you can give, or toward what you're owed? Today, at least some of your energy was pointed outward. That's worth noticing.","options":[],"target":"BRIDGE_2_3_A","signal":"axis2:contribution"},{"id":"A2_R_ENTITLEMENT","parentId":null,"type":"reflection","text":"Keeping score is human — especially on hard days. But the question is: who are you keeping score with? If the score is you vs. recognition, you'll always feel behind. If the score is you vs. yesterday's effort, you always have a chance. What would it look like to give one thing tomorrow that you don't expect anything back for?","options":[],"target":"BRIDGE_2_3_B","signal":"axis2:entitlement"},{"id":"BRIDGE_2_3_A","parentId":"A2_R_CONTRIBUTION","type":"bridge","text":"You've looked at how you handled the day, and what you gave. Now for the final lens — how wide did your concern reach today?","options":[],"target":"A3_OPEN","signal":""},{"id":"BRIDGE_2_3_B","parentId":"A2_R_ENTITLEMENT","type":"bridge","text":"You've looked at how you handled the day, and how you oriented yourself. Now the final question — who else were you thinking about today?","options":[],"target":"A3_OPEN","signal":""},{"id":"A3_OPEN","parentId":null,"type":"question","text":"When you think about today's biggest challenge, whose face — if anyone's — comes to mind beyond your own?","options":["No one specific — it felt like my problem to solve","A teammate who was in it with me","Someone who needed something from me that I may not have fully delivered","The people on the other end of my work — users, clients, those I serve"],"target":"","signal":""},{"id":"A3_D1","parentId":"A3_OPEN","type":"decision","text":"","options":["answer=No one specific — it felt like my problem to solve:A3_Q_SELF","answer=A teammate who was in it with me|Someone who needed something from me that I may not have fully delivered|The people on the other end of my work — users, clients, those I serve:A3_Q_OTHER"],"target":"","signal":""},{"id":"A3_Q_SELF","parentId":"A3_D1","type":"question","text":"At any point today, did you wonder how someone else was experiencing the same situation — not to fix it, just to understand?","options":["Yes — I actually took a moment to imagine it","A little — it crossed my mind briefly","I was too absorbed in my own tasks","No — I wasn't in that kind of headspace today"],"target":"","signal":"axis3:self"},{"id":"A3_Q_OTHER","parentId":"A3_D1","type":"question","text":"When you thought about that person — the teammate, the colleague, the person you serve — what did you do with that awareness?","options":["I acted on it — I reached out or adjusted something","I held it in mind, even if I couldn't act","I noticed it, then moved on to my own priorities","I felt it, but I didn't know what to do with it"],"target":"","signal":"axis3:altrocentric"},{"id":"A3_D2_SELF","parentId":"A3_Q_SELF","type":"decision","text":"","options":["answer=Yes — I actually took a moment to imagine it|A little — it crossed my mind briefly:A3_Q2_EXPAND","answer=I was too absorbed in my own tasks|No — I wasn't in that kind of headspace today:A3_Q2_NARROW"],"target":"","signal":""},{"id":"A3_D2_OTHER","parentId":"A3_Q_OTHER","type":"decision","text":"","options":["answer=I acted on it — I reached out or adjusted something|I held it in mind, even if I couldn't act:A3_Q2_EXPAND","answer=I noticed it, then moved on to my own priorities|I felt it, but I didn't know what to do with it:A3_Q2_NARROW"],"target":"","signal":""},{"id":"A3_Q2_EXPAND","parentId":null,"type":"question","text":"Is there someone on your team who had a harder day than you today — and did you notice?","options":["Yes — I checked in on them","Yes — I noticed but didn't act on it","I'm not sure — I wasn't tuned in that way","No, everyone seemed fine from where I was sitting"],"target":"","signal":"axis3:altrocentric"},{"id":"A3_Q2_NARROW","parentId":null,"type":"question","text":"When today felt heavy, what was the frame you were using to experience it?","options":["My workload, my stress, my goals","My team's performance and what it meant for us","What this meant for the people we serve","I wasn't framing it — I was just surviving it"],"target":"","signal":"axis3:self"},{"id":"A3_D3","parentId":"A3_Q2_EXPAND","type":"decision","text":"","options":["answer=Yes — I checked in on them|Yes — I noticed but didn't act on it:A3_R_ALTROCENTRIC","answer=I'm not sure — I wasn't tuned in that way|No, everyone seemed fine from where I was sitting:A3_R_SELF"],"target":"","signal":""},{"id":"A3_D3B","parentId":"A3_Q2_NARROW","type":"decision","text":"","options":["answer=My team's performance and what it meant for us|What this meant for the people we serve:A3_R_ALTROCENTRIC","answer=My workload, my stress, my goals|I wasn't framing it — I was just surviving it:A3_R_SELF"],"target":"","signal":""},{"id":"A3_R_ALTROCENTRIC","parentId":null,"type":"reflection","text":"Your concern reaches beyond yourself — and that's not a small thing. Research consistently shows that people who orient toward others' wellbeing don't just help more, they also suffer less. Meaning isn't found by looking inward. It's found by looking outward and acting from there.","options":[],"target":"SUMMARY","signal":"axis3:altrocentric"},{"id":"A3_R_SELF","parentId":null,"type":"reflection","text":"Today your radius of concern was narrow — mostly just yourself. That's not a judgment; sometimes the day demands exactly that. But there's a question worth sitting with: is there one person who might have needed something from you today, that you didn't notice? You don't have to fix it now. Just hold the question.","options":[],"target":"SUMMARY","signal":"axis3:self"},{"id":"SUMMARY","parentId":null,"type":"summary","text":"","options":[],"target":"END","signal":"","summaryTemplates":{"axis1":{"internal":"you saw where you had a hand in things","external":"you felt pulled by what was outside your control"},"axis2":{"contribution":"oriented toward what you could give","entitlement":"more aware of what you felt was owed to you"},"axis3":{"altrocentric":"beyond yourself — to teammates and the people you serve","self":"close to home — your own tasks, your own load"}}},{"id":"END","parentId":"SUMMARY","type":"end","text":"That's it. You showed up, you reflected, and that matters. See you tomorrow.","options":[],"target":"","signal":""}];
+
+// ═══════════════════════════════════════════════════════
+// ENGINE
+// ═══════════════════════════════════════════════════════
+
+class ReflectionEngine {
+  constructor(treeData) {
+    this.tree = {};
+    this.children = {};
+    treeData.forEach(node => {
+      this.tree[node.id] = node;
+      if (!this.children[node.id]) this.children[node.id] = [];
+      if (node.parentId) {
+        if (!this.children[node.parentId]) this.children[node.parentId] = [];
+        this.children[node.parentId].push(node.id);
+      }
+    });
+
+    this.state = {
+      answers: {},
+      axis1: { internal: 0, external: 0 },
+      axis2: { contribution: 0, entitlement: 0 },
+      axis3: { altrocentric: 0, self: 0 },
+      visitedNodes: [],
+      questionCount: 0,
+    };
+    this.currentId = 'START';
+    this.totalQuestions = treeData.filter(n => n.type === 'question').length;
+  }
+
+  applySignal(signal) {
+    if (!signal) return;
+    const [axis, pole] = signal.split(':');
+    if (this.state[axis] && pole in this.state[axis]) {
+      this.state[axis][pole]++;
+    }
+  }
+
+  interpolate(text) {
+    return text.replace(/\{([^}]+)\}/g, (_, ref) => {
+      const [nodeId, field] = ref.split('.');
+      return this.state.answers[nodeId] || `[${ref}]`;
+    });
+  }
+
+  resolveDecision(node) {
+    const parentId = node.parentId;
+    const lastAnswer = parentId ? (this.state.answers[parentId] || '') : '';
+
+    for (const rule of node.options) {
+      if (!rule.includes(':')) continue;
+      const [condition, target] = rule.split(':');
+      if (condition.startsWith('answer=')) {
+        const accepted = condition.slice(7).split('|');
+        if (accepted.includes(lastAnswer)) return target;
+      }
+    }
+    // fallback
+    if (node.options.length && node.options[0].includes(':')) {
+      return node.options[0].split(':').slice(1).join(':');
+    }
+    return null;
+  }
+
+  findNext(node) {
+    if (node.target) return node.target;
+    const kids = this.children[node.id] || [];
+    return kids.length ? kids[0] : null;
+  }
+
+  getDominant(axis) {
+    const counts = this.state[axis];
+    if (!counts) return null;
+    const entries = Object.entries(counts);
+    if (!entries.length) return null;
+    const sorted = entries.sort((a, b) => b[1] - a[1]);
+    return sorted[0][0];
+  }
+
+  buildSummary(node) {
+    const tpl = node.summaryTemplates;
+    const axis1pole = this.getDominant('axis1') || 'internal';
+    const axis2pole = this.getDominant('axis2') || 'contribution';
+    const axis3pole = this.getDominant('axis3') || 'self';
+
+    return {
+      axis1: { pole: axis1pole, text: tpl.axis1[axis1pole] || axis1pole, score: this.state.axis1[axis1pole] || 0 },
+      axis2: { pole: axis2pole, text: tpl.axis2[axis2pole] || axis2pole, score: this.state.axis2[axis2pole] || 0 },
+      axis3: { pole: axis3pole, text: tpl.axis3[axis3pole] || axis3pole, score: this.state.axis3[axis3pole] || 0 },
+    };
+  }
+
+  advance(selectedOption = null) {
+    const node = this.tree[this.currentId];
+    if (!node) return null;
+
+    // Record answer if it's a question
+    if (node.type === 'question' && selectedOption !== null) {
+      this.state.answers[node.id] = selectedOption;
+      this.state.questionCount++;
+    }
+
+    // Apply signal
+    this.applySignal(node.signal);
+    this.state.visitedNodes.push(node.id);
+
+    // Find next
+    let nextId;
+    if (node.type === 'decision') {
+      nextId = this.resolveDecision(node);
+    } else {
+      nextId = this.findNext(node);
+    }
+
+    if (!nextId) return null;
+    this.currentId = nextId;
+
+    // Skip decision nodes automatically
+    const next = this.tree[nextId];
+    if (next && next.type === 'decision') {
+      return this.advance();
+    }
+
+    return next;
+  }
+
+  progress() {
+    return Math.min((this.state.questionCount / this.totalQuestions) * 100, 95);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// UI
+// ═══════════════════════════════════════════════════════
+
+class ReflectionApp {
+  constructor() {
+    this.engine = new ReflectionEngine(TREE_DATA);
+    this.card = document.getElementById('card');
+    this.progressFill = document.getElementById('progress-fill');
+    this.nodeCounter = document.getElementById('node-counter');
+    this.axisTracker = document.querySelectorAll('.axis-pip');
+    this.selectedOption = null;
+    this.currentNodeType = null;
+
+    this.updateClock();
+    setInterval(() => this.updateClock(), 60000);
+    this.bindKeyboard();
+
+    // Start
+    const startNode = this.engine.tree['START'];
+    this.renderNode(startNode);
+  }
+
+  updateClock() {
+    const now = new Date();
+    const h = now.getHours().toString().padStart(2, '0');
+    const m = now.getMinutes().toString().padStart(2, '0');
+    document.getElementById('time-display').textContent = `${h}:${m}`;
+  }
+
+  bindKeyboard() {
+    document.addEventListener('keydown', (e) => {
+      if (e.key >= '1' && e.key <= '4') {
+        const idx = parseInt(e.key) - 1;
+        const btns = document.querySelectorAll('.option-btn');
+        if (btns[idx]) btns[idx].click();
+      }
+      if (e.key === 'Enter') {
+        const continueBtn = document.querySelector('.btn-continue');
+        if (continueBtn) continueBtn.click();
+        const startBtn = document.querySelector('.btn-start');
+        if (startBtn) startBtn.click();
+      }
+    });
+  }
+
+  updateProgress(node) {
+    this.progressFill.style.width = this.engine.progress() + '%';
+
+    // Axis tracker
+    const id = node.id;
+    const isA1 = id.startsWith('A1') || id.startsWith('BRIDGE_1');
+    const isA2 = id.startsWith('A2') || id.startsWith('BRIDGE_2');
+    const isA3 = id.startsWith('A3');
+    const isSummary = id === 'SUMMARY' || id === 'END';
+
+    this.axisTracker.forEach(pip => {
+      const a = pip.dataset.axis;
+      pip.classList.remove('active', 'done');
+      if (a === '1' && isA1) pip.classList.add('active');
+      else if (a === '2' && isA2) pip.classList.add('active');
+      else if (a === '3' && isA3) pip.classList.add('active');
+      else if (isSummary) pip.classList.add('done');
+      else if (a === '1' && (isA2 || isA3)) pip.classList.add('done');
+      else if (a === '2' && isA3) pip.classList.add('done');
+    });
+
+    const qCount = this.engine.state.questionCount;
+    const total = this.engine.totalQuestions;
+    this.nodeCounter.textContent = qCount > 0 ? `${qCount} / ${total} questions` : '—';
+  }
+
+  transition(renderFn) {
+    const el = this.card;
+    el.classList.add('slide-out');
+    setTimeout(() => {
+      el.classList.remove('slide-out');
+      el.innerHTML = '';
+      renderFn();
+    }, 300);
+  }
+
+  renderNode(node) {
+    if (!node) return;
+    this.currentNodeType = node.type;
+    this.selectedOption = null;
+    this.updateProgress(node);
+
+    switch (node.type) {
+      case 'start':    return this.renderStart(node);
+      case 'question': return this.renderQuestion(node);
+      case 'reflection': return this.renderReflection(node);
+      case 'bridge':   return this.renderBridge(node);
+      case 'summary':  return this.renderSummary(node);
+      case 'end':      return this.renderEnd(node);
+    }
+  }
+
+  next(selectedOption = null) {
+    const nextNode = this.engine.advance(selectedOption);
+    if (nextNode) {
+      this.transition(() => this.renderNode(nextNode));
+    }
+  }
+
+  renderStart(node) {
+    this.card.innerHTML = `
+      <div class="start-card">
+        <span class="start-moon">🌙</span>
+        <h1 class="start-title">How did you show up today?</h1>
+        <p class="start-sub">${node.text}</p>
+        <button class="btn-start" id="startBtn">
+          Begin reflection <span class="arrow">→</span>
+        </button>
+      </div>`;
+    document.getElementById('startBtn').onclick = () => this.next();
+  }
+
+  renderQuestion(node) {
+    const text = this.engine.interpolate(node.text);
+    const axisNum = node.id.startsWith('A1') ? '1' : node.id.startsWith('A2') ? '2' : node.id.startsWith('A3') ? '3' : '';
+    const axisLabel = axisNum === '1' ? 'I — Locus' : axisNum === '2' ? 'II — Orientation' : axisNum === '3' ? 'III — Radius' : 'Reflection';
+
+    this.card.innerHTML = `
+      <div class="node-label">${axisLabel}</div>
+      <div class="question-text">${text}</div>
+      <div class="options-grid" id="options"></div>`;
+
+    const grid = document.getElementById('options');
+    const keys = ['A', 'B', 'C', 'D'];
+
+    node.options.forEach((opt, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'option-btn';
+      btn.innerHTML = `<span class="option-key">${keys[i]}</span><span>${opt}</span>`;
+      btn.onclick = () => {
+        document.querySelectorAll('.option-btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        this.selectedOption = opt;
+        // Auto-advance after brief pause
+        setTimeout(() => this.next(opt), 420);
+      };
+      grid.appendChild(btn);
+    });
+  }
+
+  renderReflection(node) {
+    const text = this.engine.interpolate(node.text);
+    this.card.innerHTML = `
+      <div class="reflection-card">
+        <div class="reflection-label">Reflection</div>
+        <div class="reflection-text">"${text}"</div>
+        <button class="btn-continue" id="contBtn">
+          Continue <span class="arrow">→</span>
+        </button>
+      </div>`;
+    document.getElementById('contBtn').onclick = () => this.next();
+  }
+
+  renderBridge(node) {
+    const text = this.engine.interpolate(node.text);
+    this.card.innerHTML = `
+      <div class="bridge-card">
+        <div class="bridge-divider"><span class="bridge-icon">◦</span></div>
+        <div class="bridge-text">${text}</div>
+      </div>`;
+    setTimeout(() => this.next(), 2200);
+  }
+
+  renderSummary(node) {
+    this.progressFill.style.width = '100%';
+    const s = this.engine.buildSummary(node);
+
+    const axisHtml = (label, cls, data) => `
+      <div class="axis-summary">
+        <div class="axis-name ${cls}">${label}</div>
+        <div class="axis-result">You leaned <strong>${data.pole}</strong> — ${data.text}.</div>
+        <div class="axis-bar"><div class="axis-bar-fill ${cls}" style="width:0%" data-target="${Math.min(data.score * 40 + 30, 90)}%"></div></div>
+      </div>`;
+
+    this.card.innerHTML = `
+      <div class="summary-card">
+        <div class="summary-title">Today's reflection — ${new Date().toLocaleDateString('en-IN', {weekday:'long', day:'numeric', month:'long'})}</div>
+        ${axisHtml('I · Locus of Agency', 'a1', s.axis1)}
+        ${axisHtml('II · Orientation', 'a2', s.axis2)}
+        ${axisHtml('III · Radius of Concern', 'a3', s.axis3)}
+        <div class="summary-close">Three honest answers. Sleep on it.</div>
+        <div style="margin-top:28px">
+          <button class="btn-continue" id="summaryBtn">Finish <span class="arrow">→</span></button>
+        </div>
+      </div>`;
+
+    // Animate bars
+    setTimeout(() => {
+      document.querySelectorAll('.axis-bar-fill').forEach(bar => {
+        bar.style.width = bar.dataset.target;
+      });
+    }, 400);
+
+    document.getElementById('summaryBtn').onclick = () => this.next();
+  }
+
+  renderEnd(node) {
+    this.card.innerHTML = `
+      <div class="end-card">
+        <span class="end-star">✦</span>
+        <div class="end-text">${node.text}</div>
+        <div class="end-sub">Reflection complete · ${new Date().toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'})}</div>
+        <div style="margin-top:40px">
+          <button class="btn-start" onclick="location.reload()">Start a new session →</button>
+        </div>
+      </div>`;
+    this.nodeCounter.textContent = 'Complete';
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  new ReflectionApp();
+});
+</script>
+</body>
+</html>
